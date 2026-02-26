@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vdiff</title>
+
+<!-- highlight.js for syntax highlighting (CDN, graceful degradation if offline) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    line-height: 1.5;
+}
+
+/* --- Toolbar --- */
+#toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    font-size: 13px;
+}
+
+#toolbar .title {
+    font-weight: 700;
+    font-size: 14px;
+    color: #e6edf3;
+    letter-spacing: 0.5px;
+    margin-right: auto;
+}
+
+#toolbar button {
+    background: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+#toolbar button:hover {
+    background: #30363d;
+    border-color: #484f58;
+}
+
+#toolbar .comment-count {
+    font-size: 11px;
+    background: #8957e5;
+    color: #fff;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-weight: 600;
+}
+
+/* --- Main content --- */
+#loading {
+    text-align: center;
+    padding: 80px 20px;
+    color: #484f58;
+    font-size: 14px;
+}
+
+#error {
+    text-align: center;
+    padding: 80px 20px;
+    color: #f85149;
+    font-size: 14px;
+    display: none;
+}
+
+#diff-container {
+    padding: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 60px;
+}
+
+/* --- File summary --- */
+.file-summary {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.file-summary-header {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e6edf3;
+    border-bottom: 1px solid #21262d;
+}
+
+.file-summary-list {
+    list-style: none;
+}
+
+.file-summary-list li {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.file-summary-list li:last-child {
+    border-bottom: none;
+}
+
+.file-summary-list li:hover {
+    background: #1c2128;
+}
+
+.file-summary-list .file-name {
+    color: #58a6ff;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    flex: 1;
+}
+
+.file-summary-list .stat-added {
+    color: #3fb950;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.file-summary-list .stat-deleted {
+    color: #f85149;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* --- File card --- */
+.file-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.file-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+
+.file-header:hover {
+    background: #1c2128;
+}
+
+.file-header .collapse-icon {
+    color: #484f58;
+    font-size: 10px;
+    margin-right: 8px;
+    transition: transform 0.15s;
+    display: inline-block;
+    width: 12px;
+}
+
+.file-header.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.file-header .file-name {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e6edf3;
+    flex: 1;
+}
+
+.file-header .file-stats {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.file-header .stat-added {
+    color: #3fb950;
+}
+
+.file-header .stat-deleted {
+    color: #f85149;
+}
+
+.file-body {
+    overflow-x: auto;
+}
+
+.file-body.collapsed {
+    display: none;
+}
+
+/* --- Diff lines --- */
+.diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 20px;
+    table-layout: fixed;
+}
+
+.diff-table td {
+    padding: 0;
+    vertical-align: top;
+}
+
+.line-num {
+    width: 50px;
+    min-width: 50px;
+    text-align: right;
+    padding: 0 8px;
+    color: #484f58;
+    user-select: none;
+    background: #0d1117;
+    border-right: 1px solid #21262d;
+    font-size: 12px;
+}
+
+.line-prefix {
+    width: 20px;
+    min-width: 20px;
+    text-align: center;
+    user-select: none;
+    padding: 0;
+}
+
+.line-content {
+    padding: 0 12px;
+    white-space: pre;
+    overflow-x: visible;
+    cursor: pointer;
+    position: relative;
+}
+
+.line-content:hover {
+    background-color: rgba(56, 139, 253, 0.1) !important;
+}
+
+.line-content:hover::after {
+    content: '+ Comment';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #484f58;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 1px 6px;
+    pointer-events: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Multiline selection */
+.diff-line.selected > td {
+    background: rgba(56, 139, 253, 0.15) !important;
+}
+
+.diff-line.selected .line-num {
+    background: rgba(56, 139, 253, 0.2) !important;
+    color: #58a6ff !important;
+}
+
+.diff-line.selected .line-content:hover::after {
+    display: none;
+}
+
+.diff-line.selection-anchor .line-content::after {
+    content: 'Shift+click or drag to select range';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #58a6ff;
+    background: #1f2937;
+    border: 1px solid #1f6feb;
+    border-radius: 4px;
+    padding: 1px 6px;
+    pointer-events: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.diff-line.selection-anchor .line-content:hover::after {
+    content: 'Shift+click or drag to select range';
+    color: #58a6ff;
+    background: #1f2937;
+    border-color: #1f6feb;
+}
+
+/* Line types */
+.diff-line.addition .line-num {
+    background: rgba(46, 160, 67, 0.1);
+    color: #3fb950;
+}
+
+.diff-line.addition .line-prefix {
+    color: #3fb950;
+    background: rgba(46, 160, 67, 0.15);
+}
+
+.diff-line.addition .line-content {
+    background: rgba(46, 160, 67, 0.15);
+}
+
+.diff-line.deletion .line-num {
+    background: rgba(248, 81, 73, 0.1);
+    color: #f85149;
+}
+
+.diff-line.deletion .line-prefix {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.15);
+}
+
+.diff-line.deletion .line-content {
+    background: rgba(248, 81, 73, 0.15);
+}
+
+.diff-line.context .line-content {
+    color: #8b949e;
+}
+
+/* Let highlight.js github-dark theme handle syntax colors.
+   Ensure unhighlighted lines still have a readable default. */
+.diff-line .line-content {
+    color: #c9d1d9;
+}
+
+.diff-line.hunk-header td {
+    background: rgba(56, 139, 253, 0.1);
+    color: #58a6ff;
+    padding: 4px 0;
+    font-style: italic;
+}
+
+.diff-line.hunk-header .line-content {
+    padding: 0 12px;
+    cursor: default;
+}
+
+.diff-line.hunk-header .line-content:hover {
+    background-color: rgba(56, 139, 253, 0.1) !important;
+}
+
+.diff-line.hunk-header .line-content:hover::after {
+    display: none;
+}
+
+/* --- Comment UI --- */
+.comment-row td {
+    background: #1c2128 !important;
+    border-left: 3px solid #8957e5;
+    padding: 10px 14px !important;
+    animation: slideIn 0.15s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.comment-row .comment-input {
+    width: 100%;
+    min-height: 56px;
+    background: #0d1117;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    resize: vertical;
+    outline: none;
+    line-height: 1.5;
+}
+
+.comment-row .comment-input:focus {
+    border-color: #1f6feb;
+    box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.2);
+}
+
+.comment-row .comment-input::placeholder {
+    color: #484f58;
+}
+
+.comment-row .comment-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.comment-row .comment-actions button {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+
+.comment-row .btn-save {
+    background: #238636;
+    color: #fff;
+    border-color: #238636;
+}
+
+.comment-row .btn-save:hover {
+    background: #2ea043;
+}
+
+.comment-row .btn-cancel {
+    background: #21262d;
+    color: #c9d1d9;
+    border-color: #30363d;
+}
+
+.comment-row .btn-cancel:hover {
+    background: #30363d;
+}
+
+/* Lines covered by a saved comment */
+.diff-line.commented > td {
+    border-left: 3px solid #8957e5;
+}
+
+.diff-line.commented .line-num:first-child {
+    border-left: 3px solid #8957e5;
+    padding-left: 5px;
+}
+
+/* Commented lines get a subtle purple tint */
+.diff-line.commented > td {
+    background: rgba(137, 87, 229, 0.06) !important;
+}
+
+.diff-line.commented.addition > td {
+    background: rgba(46, 160, 67, 0.2) !important;
+}
+
+.diff-line.commented.deletion > td {
+    background: rgba(248, 81, 73, 0.2) !important;
+}
+
+/* Hovering a comment highlights its lines */
+.diff-line.comment-hover > td {
+    background: rgba(137, 87, 229, 0.12) !important;
+}
+
+.diff-line.comment-hover.addition > td {
+    background: rgba(46, 160, 67, 0.25) !important;
+}
+
+.diff-line.comment-hover.deletion > td {
+    background: rgba(248, 81, 73, 0.25) !important;
+}
+
+.comment-display td {
+    background: #1c2128 !important;
+    border-left: 3px solid #8957e5;
+    padding: 8px 14px !important;
+}
+
+.comment-display .comment-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.comment-display .comment-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.comment-display .comment-badge {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.comment-display .comment-line-range {
+    font-size: 11px;
+    color: #8b949e;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+.comment-display .comment-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.comment-display .comment-text {
+    white-space: pre-wrap;
+    cursor: pointer;
+    line-height: 1.5;
+    color: #c9d1d9;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    transition: background 0.15s;
+}
+
+.comment-display .comment-text:hover {
+    background: rgba(56, 139, 253, 0.1);
+}
+
+.comment-display .btn-delete {
+    background: none;
+    border: none;
+    color: #484f58;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+
+.comment-display .btn-delete:hover {
+    background: rgba(137, 87, 229, 0.15);
+    color: #bc8cff;
+}
+
+/* --- Prompt panel (fixed bottom) --- */
+#prompt-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    z-index: 150;
+    display: none;
+    flex-direction: column;
+    max-height: 40vh;
+}
+
+#prompt-panel.visible {
+    display: flex;
+}
+
+#prompt-panel .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+}
+
+#prompt-panel .panel-header h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e6edf3;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#prompt-panel .panel-actions {
+    display: flex;
+    gap: 6px;
+}
+
+#prompt-panel .panel-actions button {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+
+#prompt-panel .btn-copy {
+    background: #1f6feb;
+    color: #fff;
+    border-color: #1f6feb;
+}
+
+#prompt-panel .btn-copy:hover {
+    background: #388bfd;
+}
+
+#prompt-panel .btn-close-panel {
+    background: #21262d;
+    color: #c9d1d9;
+    border-color: #30363d;
+}
+
+#prompt-panel .btn-close-panel:hover {
+    background: #30363d;
+}
+
+#prompt-panel .panel-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 12px 16px;
+}
+
+#prompt-panel pre {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12px;
+    color: #c9d1d9;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.6;
+    margin: 0;
+}
+
+#prompt-panel .no-comments {
+    color: #484f58;
+    font-style: italic;
+}
+
+/* --- Toast --- */
+#toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #238636;
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 300;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+    <span class="title">vdiff</span>
+    <span id="comment-badge" class="comment-count" style="display:none">0</span>
+    <button id="btn-export" style="display:none" onclick="togglePromptPanel()">Prompt Output</button>
+</div>
+
+<div id="loading">Loading diff...</div>
+<div id="error"></div>
+<div id="diff-container"></div>
+
+<div id="prompt-panel">
+    <div class="panel-header">
+        <h3>Review Comments</h3>
+        <div class="panel-actions">
+            <button class="btn-copy" onclick="copyExport()">Copy to Clipboard</button>
+            <button class="btn-close-panel" onclick="togglePromptPanel()">Close</button>
+        </div>
+    </div>
+    <div class="panel-body">
+        <pre id="prompt-content"><span class="no-comments">Click on any diff line to add a comment...</span></pre>
+    </div>
+</div>
+
+<div id="toast">Copied to clipboard!</div>
+
+<script>
+// --- State ---
+var comments = [];
+var commentIdCounter = 0;
+var promptPanelOpen = false;
+var diffData = []; // parsed diff
+var selectionAnchor = null; // { tr, file, lineId } for multiline selection
+
+// =====================
+// Diff Parser
+// =====================
+function parseDiff(raw) {
+    var files = [];
+    var lines = raw.split('\n');
+    var currentFile = null;
+    var currentHunk = null;
+    var oldNum = 0, newNum = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        // New file
+        if (line.startsWith('diff --git')) {
+            currentFile = { file: '', hunks: [], additions: 0, deletions: 0 };
+            files.push(currentFile);
+            currentHunk = null;
+            continue;
+        }
+
+        // File names
+        if (line.startsWith('--- a/') || line.startsWith('--- /dev/null')) {
+            continue;
+        }
+        if (line.startsWith('+++ b/')) {
+            if (currentFile) currentFile.file = line.substring(6);
+            continue;
+        }
+        if (line.startsWith('+++ /dev/null')) {
+            // deleted file — name already from diff --git line
+            if (currentFile && !currentFile.file) {
+                // try to extract from diff --git line
+                var prevLines = lines.slice(Math.max(0, i - 4), i);
+                for (var p = prevLines.length - 1; p >= 0; p--) {
+                    if (prevLines[p].startsWith('diff --git')) {
+                        var match = prevLines[p].match(/diff --git a\/(.+) b\//);
+                        if (match) currentFile.file = match[1] + ' (deleted)';
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Index, mode lines — skip
+        if (line.startsWith('index ') || line.startsWith('old mode') ||
+            line.startsWith('new mode') || line.startsWith('new file') ||
+            line.startsWith('deleted file') || line.startsWith('similarity') ||
+            line.startsWith('rename from') || line.startsWith('rename to') ||
+            line.startsWith('Binary files')) {
+            if (line.startsWith('rename to') && currentFile) {
+                var renameTo = line.substring(10);
+                if (currentFile.file) {
+                    currentFile.file = currentFile.file + ' → ' + renameTo;
+                } else {
+                    currentFile.file = renameTo;
+                }
+            }
+            continue;
+        }
+
+        // Hunk header
+        if (line.startsWith('@@')) {
+            var hunkMatch = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+            if (hunkMatch) {
+                oldNum = parseInt(hunkMatch[1]);
+                newNum = parseInt(hunkMatch[2]);
+                currentHunk = {
+                    header: line,
+                    context: hunkMatch[3] ? hunkMatch[3].trim() : '',
+                    lines: []
+                };
+                if (currentFile) currentFile.hunks.push(currentHunk);
+            }
+            continue;
+        }
+
+        // Diff content lines
+        if (currentHunk) {
+            if (line.startsWith('+')) {
+                currentHunk.lines.push({
+                    type: 'addition',
+                    oldNum: null,
+                    newNum: newNum,
+                    content: line.substring(1)
+                });
+                newNum++;
+                if (currentFile) currentFile.additions++;
+            } else if (line.startsWith('-')) {
+                currentHunk.lines.push({
+                    type: 'deletion',
+                    oldNum: oldNum,
+                    newNum: null,
+                    content: line.substring(1)
+                });
+                oldNum++;
+                if (currentFile) currentFile.deletions++;
+            } else if (line.startsWith(' ') || line === '') {
+                currentHunk.lines.push({
+                    type: 'context',
+                    oldNum: oldNum,
+                    newNum: newNum,
+                    content: line.startsWith(' ') ? line.substring(1) : line
+                });
+                oldNum++;
+                newNum++;
+            } else if (line.startsWith('\\')) {
+                // "\ No newline at end of file" — skip
+                continue;
+            }
+        }
+    }
+
+    return files;
+}
+
+// =====================
+// Renderer
+// =====================
+function renderDiff() {
+    document.getElementById('loading').style.display = 'none';
+    var container = document.getElementById('diff-container');
+    var html = '';
+
+    // File summary
+    if (diffData.length > 1) {
+        html += '<div class="file-summary">';
+        html += '<div class="file-summary-header">' + diffData.length + ' files changed</div>';
+        html += '<ul class="file-summary-list">';
+        diffData.forEach(function(f, fi) {
+            html += '<li onclick="scrollToFile(' + fi + ')">';
+            html += '<span class="file-name">' + escapeHtml(f.file) + '</span>';
+            if (f.additions > 0) html += '<span class="stat-added">+' + f.additions + '</span>';
+            if (f.deletions > 0) html += '<span class="stat-deleted">-' + f.deletions + '</span>';
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    // File cards
+    diffData.forEach(function(f, fi) {
+        html += '<div class="file-card" id="file-' + fi + '">';
+
+        // Header
+        html += '<div class="file-header" onclick="toggleFile(' + fi + ')">';
+        html += '<span class="collapse-icon">&#9660;</span>';
+        html += '<span class="file-name">' + escapeHtml(f.file) + '</span>';
+        html += '<span class="file-stats">';
+        if (f.additions > 0) html += '<span class="stat-added">+' + f.additions + '</span>';
+        if (f.deletions > 0) html += '<span class="stat-deleted">-' + f.deletions + '</span>';
+        html += '</span>';
+        html += '</div>';
+
+        // Body
+        html += '<div class="file-body" id="file-body-' + fi + '">';
+        html += '<table class="diff-table">';
+
+        f.hunks.forEach(function(hunk) {
+            // Hunk header row
+            html += '<tr class="diff-line hunk-header">';
+            html += '<td class="line-num"></td>';
+            html += '<td class="line-num"></td>';
+            html += '<td class="line-prefix"></td>';
+            html += '<td class="line-content">' + escapeHtml(hunk.header) + '</td>';
+            html += '</tr>';
+
+            hunk.lines.forEach(function(line, li) {
+                var lineId = fi + '-' + hunk.lines.indexOf(line) + '-' + (line.newNum || line.oldNum || 0);
+                var cls = 'diff-line ' + line.type;
+                var prefix = line.type === 'addition' ? '+' : line.type === 'deletion' ? '-' : ' ';
+
+                html += '<tr class="' + cls + '" data-line-id="' + lineId + '" data-file="' + escapeAttr(f.file) + '" data-line-num="' + (line.newNum || line.oldNum || '') + '" data-content="' + escapeAttr(line.content) + '" data-side="' + line.type + '">';
+                html += '<td class="line-num">' + (line.oldNum || '') + '</td>';
+                html += '<td class="line-num">' + (line.newNum || '') + '</td>';
+                html += '<td class="line-prefix">' + prefix + '</td>';
+                html += '<td class="line-content">' + escapeHtml(line.content || ' ') + '</td>';
+                html += '</tr>';
+            });
+        });
+
+        html += '</table></div></div>';
+    });
+
+    container.innerHTML = html;
+
+    // Apply syntax highlighting
+    highlightAllFiles();
+
+    // Re-attach saved comments
+    reattachComments();
+}
+
+// =====================
+// Syntax highlighting
+// =====================
+var extToLang = {
+    'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript', 'tsx': 'typescript',
+    'py': 'python', 'rb': 'ruby', 'rs': 'rust', 'go': 'go', 'java': 'java',
+    'c': 'c', 'h': 'c', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp',
+    'cs': 'csharp', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin',
+    'php': 'php', 'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
+    'html': 'xml', 'htm': 'xml', 'xml': 'xml', 'svg': 'xml',
+    'css': 'css', 'scss': 'scss', 'less': 'less',
+    'json': 'json', 'yaml': 'yaml', 'yml': 'yaml', 'toml': 'ini',
+    'md': 'markdown', 'sql': 'sql', 'r': 'r',
+    'dockerfile': 'dockerfile', 'makefile': 'makefile',
+    'lua': 'lua', 'perl': 'perl', 'pl': 'perl',
+    'ex': 'elixir', 'exs': 'elixir', 'erl': 'erlang',
+    'hs': 'haskell', 'scala': 'scala', 'clj': 'clojure',
+    'vue': 'xml', 'svelte': 'xml'
+};
+
+function detectLanguage(filename) {
+    if (!filename) return null;
+    var name = filename.toLowerCase().replace(/ \(deleted\)$/, '');
+    // Check full filename for special cases
+    var base = name.split('/').pop();
+    if (base === 'dockerfile') return 'dockerfile';
+    if (base === 'makefile' || base === 'gnumakefile') return 'makefile';
+    // Check extension
+    var ext = name.split('.').pop();
+    return extToLang[ext] || null;
+}
+
+function highlightAllFiles() {
+    if (typeof hljs === 'undefined') return; // graceful degradation
+
+    diffData.forEach(function(f, fi) {
+        var lang = detectLanguage(f.file);
+        if (!lang) return;
+
+        var fileCard = document.getElementById('file-' + fi);
+        if (!fileCard) return;
+
+        var contentCells = fileCard.querySelectorAll('tr.diff-line:not(.hunk-header) .line-content');
+        if (contentCells.length === 0) return;
+
+        // Collect all line texts into a single block
+        var lines = [];
+        contentCells.forEach(function(cell) {
+            // Get the raw text (we stored it in data-content on the tr)
+            var tr = cell.closest('tr');
+            lines.push(tr ? tr.dataset.content : cell.textContent);
+        });
+
+        var block = lines.join('\n');
+
+        // Highlight the full block
+        var result;
+        try {
+            result = hljs.highlight(block, { language: lang, ignoreIllegals: true });
+        } catch (e) {
+            return; // language not loaded, skip
+        }
+
+        // Split highlighted HTML back into lines
+        var highlightedLines = splitHighlightedHtml(result.value);
+
+        // Apply to each cell
+        contentCells.forEach(function(cell, i) {
+            if (i < highlightedLines.length) {
+                cell.innerHTML = highlightedLines[i] || '&nbsp;';
+            }
+        });
+    });
+}
+
+function splitHighlightedHtml(html) {
+    // highlight.js wraps tokens in <span> tags. We need to split by \n
+    // while preserving open spans across line boundaries.
+    var lines = [];
+    var current = '';
+    var openSpans = []; // stack of open span tags
+
+    var i = 0;
+    while (i < html.length) {
+        if (html[i] === '\n') {
+            // Close all open spans for this line
+            for (var s = openSpans.length - 1; s >= 0; s--) {
+                current += '</span>';
+            }
+            lines.push(current);
+            // Re-open spans for next line
+            current = '';
+            for (var s = 0; s < openSpans.length; s++) {
+                current += openSpans[s];
+            }
+            i++;
+        } else if (html[i] === '<') {
+            // Parse tag
+            var tagEnd = html.indexOf('>', i);
+            if (tagEnd === -1) { current += html[i]; i++; continue; }
+            var tag = html.substring(i, tagEnd + 1);
+
+            if (tag.startsWith('</span>')) {
+                openSpans.pop();
+                current += tag;
+            } else if (tag.startsWith('<span')) {
+                openSpans.push(tag);
+                current += tag;
+            } else {
+                current += tag;
+            }
+            i = tagEnd + 1;
+        } else {
+            current += html[i];
+            i++;
+        }
+    }
+    // Close remaining spans on last line
+    for (var s = openSpans.length - 1; s >= 0; s--) {
+        current += '</span>';
+    }
+    lines.push(current);
+
+    return lines;
+}
+
+// =====================
+// File interactions
+// =====================
+function toggleFile(fi) {
+    var header = document.querySelector('#file-' + fi + ' .file-header');
+    var body = document.getElementById('file-body-' + fi);
+    header.classList.toggle('collapsed');
+    body.classList.toggle('collapsed');
+}
+
+function scrollToFile(fi) {
+    var el = document.getElementById('file-' + fi);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// =====================
+// Comment system (click, shift+click, and drag selection)
+// =====================
+var isDragging = false;
+var dragAnchorTr = null;
+
+// Attach mouse event listeners for drag selection
+document.addEventListener('mousedown', function(e) {
+    var lineTd = e.target.closest('.line-content');
+    if (!lineTd) return;
+    var tr = lineTd.closest('tr.diff-line');
+    if (!tr || tr.classList.contains('hunk-header')) return;
+
+    // Don't start drag if clicking inside comment
+    if (e.target.closest('.comment-row') || e.target.closest('.comment-display')) return;
+
+    var file = tr.dataset.file;
+
+    // Shift+click: extend from existing anchor
+    if (e.shiftKey && selectionAnchor && selectionAnchor.file === file) {
+        e.preventDefault();
+        selectRange(selectionAnchor.tr, tr);
+        return;
+    }
+
+    // Start drag
+    clearSelection();
+    isDragging = true;
+    dragAnchorTr = tr;
+    selectionAnchor = { tr: tr, file: file, lineId: tr.dataset.lineId };
+    tr.classList.add('selected', 'selection-anchor');
+
+    e.preventDefault(); // prevent text selection while dragging
+});
+
+document.addEventListener('mousemove', function(e) {
+    if (!isDragging || !dragAnchorTr) return;
+
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el) return;
+    var lineTd = el.closest('.line-content');
+    if (!lineTd) return;
+    var tr = lineTd.closest('tr.diff-line');
+    if (!tr || tr.classList.contains('hunk-header')) return;
+    if (tr.dataset.file !== dragAnchorTr.dataset.file) return;
+
+    // Update visual selection
+    var table = dragAnchorTr.closest('table');
+    if (!table) return;
+    var allRows = Array.from(table.querySelectorAll('tr.diff-line:not(.hunk-header)'));
+    var anchorIdx = allRows.indexOf(dragAnchorTr);
+    var currentIdx = allRows.indexOf(tr);
+    if (anchorIdx === -1 || currentIdx === -1) return;
+
+    var startIdx = Math.min(anchorIdx, currentIdx);
+    var stopIdx = Math.max(anchorIdx, currentIdx);
+
+    allRows.forEach(function(r) { r.classList.remove('selected'); });
+    dragAnchorTr.classList.add('selection-anchor');
+    for (var i = startIdx; i <= stopIdx; i++) {
+        if (allRows[i].dataset.file === dragAnchorTr.dataset.file) {
+            allRows[i].classList.add('selected');
+        }
+    }
+});
+
+document.addEventListener('mouseup', function(e) {
+    if (!isDragging) return;
+    isDragging = false;
+
+    var selectedLines = getSelectedLines();
+    if (selectedLines.length === 0) return;
+
+    // If only 1 line selected (simple click, no drag), open comment immediately
+    if (selectedLines.length === 1) {
+        openCommentForSelection();
+    } else {
+        // Multi-line drag completed, open comment for the range
+        openCommentForSelection();
+    }
+});
+
+function selectRange(anchorTr, endTr) {
+    // Clear timer so single-line comment doesn't fire
+    if (selectionAnchor && selectionAnchor._timer) {
+        clearTimeout(selectionAnchor._timer);
+    }
+
+    // Get all diff-line rows within the same table
+    var table = anchorTr.closest('table');
+    if (!table) return;
+
+    var allRows = Array.from(table.querySelectorAll('tr.diff-line:not(.hunk-header)'));
+    var anchorIdx = allRows.indexOf(anchorTr);
+    var endIdx = allRows.indexOf(endTr);
+
+    if (anchorIdx === -1 || endIdx === -1) return;
+
+    // Ensure correct order
+    var startIdx = Math.min(anchorIdx, endIdx);
+    var stopIdx = Math.max(anchorIdx, endIdx);
+
+    // Only select lines from the same file
+    var file = anchorTr.dataset.file;
+
+    // Clear previous selection visuals
+    allRows.forEach(function(r) { r.classList.remove('selected'); });
+    anchorTr.classList.add('selection-anchor');
+
+    // Select range
+    for (var i = startIdx; i <= stopIdx; i++) {
+        if (allRows[i].dataset.file === file) {
+            allRows[i].classList.add('selected');
+        }
+    }
+
+    // Open comment input after the last selected line
+    openCommentForSelection();
+}
+
+function getSelectedLines() {
+    return Array.from(document.querySelectorAll('tr.diff-line.selected'));
+}
+
+function clearSelection() {
+    if (selectionAnchor && selectionAnchor._timer) {
+        clearTimeout(selectionAnchor._timer);
+    }
+    selectionAnchor = null;
+    document.querySelectorAll('tr.diff-line.selected').forEach(function(r) {
+        r.classList.remove('selected', 'selection-anchor');
+    });
+}
+
+function openCommentForSelection() {
+    var selectedLines = getSelectedLines();
+    if (selectedLines.length === 0) return;
+
+    var lastLine = selectedLines[selectedLines.length - 1];
+
+    // Don't open if already has an input open after last selected line
+    var next = lastLine.nextElementSibling;
+    if (next && next.classList.contains('comment-row')) return;
+
+    // Build info from selected lines
+    var file = selectedLines[0].dataset.file;
+    var lineNums = [];
+    var codes = [];
+    var lineIds = [];
+    var sides = [];
+
+    selectedLines.forEach(function(tr) {
+        lineNums.push(tr.dataset.lineNum);
+        codes.push(tr.dataset.content);
+        lineIds.push(tr.dataset.lineId);
+        sides.push(tr.dataset.side);
+    });
+
+    // Determine dominant side
+    var sideCount = { addition: 0, deletion: 0, context: 0 };
+    sides.forEach(function(s) { sideCount[s] = (sideCount[s] || 0) + 1; });
+    var dominantSide = 'context';
+    if (sideCount.addition > sideCount.deletion) dominantSide = 'addition';
+    else if (sideCount.deletion > 0) dominantSide = 'deletion';
+
+    var lineRange = lineNums[0];
+    if (lineNums.length > 1) {
+        lineRange = lineNums[0] + '-' + lineNums[lineNums.length - 1];
+    }
+
+    openCommentInput(lastLine, {
+        file: file,
+        lineNum: lineRange,
+        side: dominantSide,
+        code: codes.join('\n'),
+        lineId: lineIds.join(','),
+        lineIds: lineIds
+    });
+}
+
+function openCommentInput(anchorTr, info) {
+    var row = document.createElement('tr');
+    row.className = 'comment-row';
+
+    var lineCount = info.lineIds ? info.lineIds.length : 1;
+    var placeholder = lineCount > 1
+        ? 'Comment on ' + lineCount + ' lines... (Cmd+Enter to save, Esc to cancel)'
+        : 'Add a review comment... (Cmd+Enter to save, Esc to cancel)';
+
+    var td = document.createElement('td');
+    td.setAttribute('colspan', '4');
+    td.innerHTML =
+        '<textarea class="comment-input" placeholder="' + escapeAttr(placeholder) + '" autofocus></textarea>' +
+        '<div class="comment-actions">' +
+        '<button class="btn-save" onclick="saveComment(this)">Save</button>' +
+        '<button class="btn-cancel" onclick="cancelComment(this)">Cancel</button>' +
+        '</div>';
+
+    row.appendChild(td);
+    row.dataset.file = info.file;
+    row.dataset.lineNum = info.lineNum;
+    row.dataset.side = info.side;
+    row.dataset.code = info.code;
+    row.dataset.lineId = info.lineId;
+
+    anchorTr.parentNode.insertBefore(row, anchorTr.nextSibling);
+
+    var textarea = row.querySelector('.comment-input');
+    textarea.focus();
+
+    textarea.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveComment(textarea);
+        if (e.key === 'Escape') cancelComment(textarea);
+    });
+}
+
+function saveComment(btnOrTextarea) {
+    var row = btnOrTextarea.closest('.comment-row');
+    var textarea = row.querySelector('.comment-input');
+    var text = textarea.value.trim();
+    if (!text) return;
+
+    var comment;
+
+    if (row.dataset.editId) {
+        var editId = parseInt(row.dataset.editId);
+        var idx = comments.findIndex(function(c) { return c.id === editId; });
+        if (idx !== -1) {
+            comments[idx].text = text;
+            comment = comments[idx];
+        }
+    } else {
+        comment = {
+            id: ++commentIdCounter,
+            file: row.dataset.file,
+            lineNum: row.dataset.lineNum,
+            side: row.dataset.side,
+            code: row.dataset.code,
+            lineId: row.dataset.lineId,
+            text: text
+        };
+        comments.push(comment);
+    }
+
+    var display = createCommentDisplay(comment);
+    row.replaceWith(display);
+    clearSelection();
+    updateCommentUI();
+    updatePromptOutput();
+}
+
+function cancelComment(btnOrTextarea) {
+    btnOrTextarea.closest('.comment-row').remove();
+    clearSelection();
+}
+
+function createCommentDisplay(comment) {
+    var tr = document.createElement('tr');
+    tr.className = 'comment-display';
+    tr.dataset.commentId = comment.id;
+    tr.dataset.commentLineIds = comment.lineId;
+
+    // Build line range label
+    var lineLabel = '';
+    var lineNum = comment.lineNum || '';
+    if (lineNum.indexOf('-') !== -1) {
+        lineLabel = 'Lines ' + lineNum;
+    } else if (lineNum) {
+        lineLabel = 'Line ' + lineNum;
+    }
+
+    var td = document.createElement('td');
+    td.setAttribute('colspan', '4');
+    td.innerHTML =
+        '<div class="comment-inner">' +
+        '<span class="comment-badge">&#x1F4AC;</span>' +
+        '<div class="comment-body">' +
+        (lineLabel ? '<div class="comment-header"><span class="comment-line-range">' + escapeHtml(lineLabel) + '</span></div>' : '') +
+        '<span class="comment-text" title="Click to edit">' + escapeHtml(comment.text) + '</span>' +
+        '</div>' +
+        '<button class="btn-delete" title="Delete" onclick="deleteComment(' + comment.id + ', this)">&times;</button>' +
+        '</div>';
+
+    td.querySelector('.comment-text').addEventListener('click', function() {
+        editComment(comment.id, tr);
+    });
+
+    // Hover: highlight associated lines
+    tr.addEventListener('mouseenter', function() {
+        highlightCommentLines(comment.lineId, true);
+    });
+    tr.addEventListener('mouseleave', function() {
+        highlightCommentLines(comment.lineId, false);
+    });
+
+    tr.appendChild(td);
+
+    // Mark the associated diff lines with a visual indicator
+    markCommentedLines(comment.lineId);
+
+    return tr;
+}
+
+function highlightCommentLines(lineIdStr, on) {
+    var ids = lineIdStr.split(',');
+    ids.forEach(function(id) {
+        var row = document.querySelector('tr.diff-line[data-line-id="' + id + '"]');
+        if (row) {
+            if (on) row.classList.add('comment-hover');
+            else row.classList.remove('comment-hover');
+        }
+    });
+}
+
+function markCommentedLines(lineIdStr) {
+    var ids = lineIdStr.split(',');
+    ids.forEach(function(id) {
+        var row = document.querySelector('tr.diff-line[data-line-id="' + id + '"]');
+        if (row) row.classList.add('commented');
+    });
+}
+
+function unmarkCommentedLines(lineIdStr) {
+    var ids = lineIdStr.split(',');
+    ids.forEach(function(id) {
+        var row = document.querySelector('tr.diff-line[data-line-id="' + id + '"]');
+        if (row) row.classList.remove('commented');
+    });
+}
+
+function editComment(id, displayEl) {
+    var comment = comments.find(function(c) { return c.id === id; });
+    if (!comment) return;
+
+    var row = document.createElement('tr');
+    row.className = 'comment-row';
+    row.dataset.editId = id;
+    row.dataset.file = comment.file;
+    row.dataset.lineNum = comment.lineNum;
+    row.dataset.side = comment.side;
+    row.dataset.code = comment.code;
+    row.dataset.lineId = comment.lineId;
+
+    var td = document.createElement('td');
+    td.setAttribute('colspan', '4');
+    td.innerHTML =
+        '<textarea class="comment-input">' + escapeHtml(comment.text) + '</textarea>' +
+        '<div class="comment-actions">' +
+        '<button class="btn-save" onclick="saveComment(this)">Save</button>' +
+        '<button class="btn-cancel" onclick="cancelEditComment(this, ' + id + ')">Cancel</button>' +
+        '</div>';
+
+    row.appendChild(td);
+    displayEl.replaceWith(row);
+
+    var textarea = row.querySelector('.comment-input');
+    textarea.focus();
+    textarea.selectionStart = textarea.value.length;
+
+    textarea.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveComment(textarea);
+        if (e.key === 'Escape') cancelEditComment(textarea, id);
+    });
+}
+
+function cancelEditComment(btnOrTextarea, id) {
+    var row = btnOrTextarea.closest('.comment-row');
+    var comment = comments.find(function(c) { return c.id === id; });
+    if (comment) {
+        row.replaceWith(createCommentDisplay(comment));
+    } else {
+        row.remove();
+    }
+}
+
+function deleteComment(id, btn) {
+    var comment = comments.find(function(c) { return c.id === id; });
+    if (comment) unmarkCommentedLines(comment.lineId);
+    comments = comments.filter(function(c) { return c.id !== id; });
+    var row = btn.closest('.comment-display');
+    if (row) row.remove();
+    updateCommentUI();
+    updatePromptOutput();
+}
+
+function reattachComments() {
+    comments.forEach(function(comment) {
+        // For multiline comments, lineId is comma-separated; attach after the last line
+        var lineIds = comment.lineId.split(',');
+        var lastId = lineIds[lineIds.length - 1];
+        var tr = document.querySelector('[data-line-id="' + lastId + '"]');
+        if (tr) {
+            var display = createCommentDisplay(comment);
+            tr.after(display);
+        }
+    });
+}
+
+// =====================
+// Comment UI
+// =====================
+function updateCommentUI() {
+    var badge = document.getElementById('comment-badge');
+    var btn = document.getElementById('btn-export');
+
+    if (comments.length > 0) {
+        badge.textContent = comments.length;
+        badge.style.display = 'inline';
+        btn.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+        btn.style.display = 'none';
+        if (promptPanelOpen) togglePromptPanel();
+    }
+}
+
+// =====================
+// Prompt panel
+// =====================
+function togglePromptPanel() {
+    promptPanelOpen = !promptPanelOpen;
+    document.getElementById('prompt-panel').classList.toggle('visible', promptPanelOpen);
+    document.getElementById('diff-container').style.paddingBottom = promptPanelOpen ? '42vh' : '60px';
+}
+
+function updatePromptOutput() {
+    var content = document.getElementById('prompt-content');
+    if (comments.length === 0) {
+        content.innerHTML = '<span class="no-comments">Click on any diff line to add a comment...</span>';
+        return;
+    }
+    content.textContent = generateExport();
+}
+
+// =====================
+// Export
+// =====================
+function generateExport() {
+    var out = 'Code Review Comments:\n\n';
+
+    comments.forEach(function(c) {
+        var lineLabel = c.lineNum || '?';
+        out += '- ' + c.file + ':' + lineLabel + '\n';
+
+        // Show code (indented, multiline supported)
+        var codeLines = c.code.split('\n');
+        if (codeLines.length === 1) {
+            out += '   Code: ' + codeLines[0].trim() + '\n';
+        } else {
+            out += '   Code:\n';
+            codeLines.forEach(function(cl) {
+                out += '     ' + cl + '\n';
+            });
+        }
+
+        out += '   Comment: ' + c.text + '\n\n';
+    });
+
+    return out.trimEnd() + '\n';
+}
+
+function copyExport() {
+    navigator.clipboard.writeText(generateExport()).then(showToast);
+}
+
+function showToast() {
+    var toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(function() { toast.classList.remove('show'); }, 2000);
+}
+
+// =====================
+// Utilities
+// =====================
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function escapeAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// =====================
+// Init
+// =====================
+document.addEventListener('DOMContentLoaded', function() {
+    // Use inlined diff if available (injected by vdiff.sh), otherwise fetch from URL param
+    if (typeof INLINE_DIFF !== 'undefined' && INLINE_DIFF) {
+        diffData = parseDiff(INLINE_DIFF);
+        renderDiff();
+        return;
+    }
+
+    var params = new URLSearchParams(window.location.search);
+    var file = params.get('file');
+    if (!file) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').textContent = 'No diff file specified.';
+        document.getElementById('error').style.display = 'block';
+        return;
+    }
+
+    fetch(file)
+        .then(function(r) {
+            if (!r.ok) throw new Error('Failed to fetch diff: ' + r.status);
+            return r.text();
+        })
+        .then(function(raw) {
+            diffData = parseDiff(raw);
+            renderDiff();
+        })
+        .catch(function(e) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').textContent = e.message;
+            document.getElementById('error').style.display = 'block';
+        });
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && promptPanelOpen) togglePromptPanel();
+});
+</script>
+</body>
+</html>
