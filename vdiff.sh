@@ -48,16 +48,36 @@ while [[ $# -gt 0 ]]; do
             DIFF_LABEL="last commit"
             shift
             ;;
+        --branch)
+            BASE="${2:-}"
+            if [ -z "$BASE" ]; then
+                # Auto-detect default branch
+                if git rev-parse --verify main &>/dev/null; then
+                    BASE="main"
+                elif git rev-parse --verify master &>/dev/null; then
+                    BASE="master"
+                else
+                    echo "Error: No base branch specified and neither 'main' nor 'master' exists." >&2
+                    exit 1
+                fi
+            else
+                shift
+            fi
+            DIFF_CMD="git diff ${BASE}...HEAD"
+            DIFF_LABEL="branch changes vs ${BASE}"
+            shift
+            ;;
         -h|--help)
             echo "Usage: vdiff [OPTIONS]"
             echo ""
             echo "Opens a git diff in the browser with an interactive viewer."
             echo ""
             echo "Options:"
-            echo "  (none)     Show unstaged changes"
-            echo "  --staged   Show staged changes"
-            echo "  --last     Show last commit diff"
-            echo "  -h, --help Show this help"
+            echo "  (none)          Show unstaged changes"
+            echo "  --staged        Show staged changes"
+            echo "  --last          Show last commit diff"
+            echo "  --branch [base] Show all changes on current branch (default base: main)"
+            echo "  -h, --help      Show this help"
             exit 0
             ;;
         *)

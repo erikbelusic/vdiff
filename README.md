@@ -29,6 +29,8 @@ sudo rm /usr/local/bin/vdiff
 vdiff              # Unstaged changes
 vdiff --staged     # Staged changes
 vdiff --last       # Last commit
+vdiff --branch     # All changes on current branch vs main
+vdiff --branch dev # All changes on current branch vs dev
 ```
 
 The tool opens your browser with the diff viewer and automatically exits. The server shuts itself down after serving the page. Press `Ctrl+C` if it doesn't close automatically.
