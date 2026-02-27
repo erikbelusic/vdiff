@@ -1,6 +1,10 @@
 # vdiff
 
-A Bash CLI tool that generates a Git diff and opens it in a browser with an interactive viewer.
+Review your Git diffs in the browser and leave comments for AI-assisted code review.
+
+`vdiff` opens any Git diff in a GitHub-dark themed viewer where you can annotate lines with review comments, then export everything in a structured format ready to paste into Claude, ChatGPT, or any LLM. It's like having a personal code review UI that feeds directly into your AI workflow.
+
+Inspired by the diff viewer in the [Claude Code playground](https://claude.ai), but without the downsides — the playground is slow to render large diffs and every interaction consumes tokens, eating into your Pro/Max daily quota or costing real dollars on API access. `vdiff` runs locally with zero token cost, works offline, supports any AI tool, and handles stacked branches via [aviator-cli](https://docs.aviator.co/aviator-cli).
 
 ## Requirements
 
