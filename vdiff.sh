@@ -67,6 +67,16 @@ while [[ $# -gt 0 ]]; do
             DIFF_LABEL="branch changes vs ${BASE}"
             shift
             ;;
+        --av)
+            if ! command -v av &>/dev/null; then
+                echo "Error: av (aviator-cli) is not installed." >&2
+                echo "Install it from: https://docs.aviator.co/aviator-cli" >&2
+                exit 1
+            fi
+            DIFF_CMD="av diff"
+            DIFF_LABEL="branch changes vs parent (av)"
+            shift
+            ;;
         -h|--help)
             echo "Usage: vdiff [OPTIONS]"
             echo ""
@@ -77,6 +87,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --staged        Show staged changes"
             echo "  --last          Show last commit diff"
             echo "  --branch [base] Show all changes on current branch (default base: main)"
+            echo "  --av            Show changes vs parent branch (requires aviator-cli)"
             echo "  -h, --help      Show this help"
             exit 0
             ;;
